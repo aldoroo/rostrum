@@ -1,0 +1,38 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Rostrum from code</title>
+<link rel="stylesheet" href="../rostrum.css">
+<link rel="stylesheet" href="../elements.css">
+</head>
+<body>
+<nav class="rostrum-rail"><button data-tab="overview">Overview</button> <button data-tab="details">Details</button></nav>
+<main>
+  <div class="content">
+    <section id="t-overview">
+      <div class="card" id="first" style="padding:20px"><h3>First</h3><div data-rostrum-reading><div data-label>Total</div><div data-value id="total">1234567</div></div></div>
+      <div class="card" id="second" style="padding:20px"><h3>Second</h3><div data-rostrum-reading><div data-label>Total</div><div data-value id="total2">555</div></div></div>
+    </section>
+    <section id="t-details">
+      <div class="card" id="third" style="padding:20px"><h3>Third</h3></div>
+    </section>
+  </div>
+</main>
+<script type="module">
+  import {createRostrum} from '../index.js';
+
+  window.rostrum = createRostrum({
+    frame: document.querySelector('main'),
+    plane: document.querySelector('main .content'),
+    tabs: ['bench', 'overview', 'details'],
+    start: 'overview',
+    workbench: 'bench',
+    storage: 'api-test.',
+    rail: document.querySelector('nav'),
+    surfaces: section => [...section.querySelectorAll('.card')],
+    ownKey: card => card.id,
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,364 @@
+/* The look of the engine itself, meaning the frame of the camera, objects on the table, their menus and the maps
+   What an object shows inside is up to the site
+   A site overrides the tokens below with its own values */
+:where(:root[data-rostrum]) {
+  color: var(--rostrum-ink);
+  font-family: var(--rostrum-font);
+  --rostrum-deep: oklch(9% 0.012 238);
+  --rostrum-ink: oklch(95% 0.018 212);
+  --rostrum-mut: oklch(86% 0.024 218);
+  --rostrum-dim: oklch(81% 0.026 222);
+  --rostrum-glow: oklch(86% 0.035 215);
+  --rostrum-hair: oklch(86% 0.03 215 / 0.13);
+  --rostrum-hair-strong: oklch(86% 0.035 215 / 0.4);
+  --rostrum-edge: oklch(86% 0.035 215 / 0.42);
+  --rostrum-line-glow: 0 0 10px oklch(84% 0.08 212 / 0.34);
+  --rostrum-mono: "Cascadia Mono", "Consolas", monospace;
+  --rostrum-body: oklch(15% 0.014 234);
+  --rostrum-font: "Bahnschrift", "Segoe UI", sans-serif;
+  --rostrum-label-glow: 0 0 9px oklch(84% 0.08 212 / 0.55);
+  --rostrum-winter: oklch(83% 0.075 245);
+  --rostrum-spring: oklch(85% 0.085 150);
+  --rostrum-summer: oklch(88% 0.095 95);
+  --rostrum-autumn: oklch(82% 0.09 55);
+  --rostrum-wrong: oklch(78% 0.16 27);
+  --rostrum-wrong-line: oklch(72% 0.17 27);
+}
+
+:root[data-rostrum] {
+  background: var(--rostrum-deep);
+
+  &, body { overflow: hidden; height: 100%; overscroll-behavior: none; }
+  &.rostrum-carrying, &.rostrum-carrying * { cursor: grabbing; user-select: none; }
+  &.rostrum-sizing, &.rostrum-sizing * { cursor: nwse-resize; }
+  #rostrumGrab { display: none; position: fixed; inset: 0; z-index: 100; cursor: grabbing; user-select: none; touch-action: none; }
+  #rostrumGrab.rostrum-held { display: block; }
+
+  #rostrumCanvas { position: fixed; left: 0; top: 0; width: 100vw; height: 100dvh; z-index: -1; pointer-events: none; background: var(--rostrum-deep); }
+
+  /* content lies on the table at world coordinates with no page flow, touch gestures go to the camera */
+  [data-rostrum-frame] { position: fixed; inset: 0; overflow: hidden; display: block; touch-action: none; overscroll-behavior: none; }
+  [data-rostrum-plane] { position: absolute; left: 0; top: 0; width: auto; padding: 0; transform-origin: 0 0; will-change: transform; }
+  /* tabs are positioned absolutely, so nothing in the frame of the content can shift the world origin off the lights */
+  [data-rostrum-plane] > :is(.rostrum-open, .rostrum-ready) { display: block; position: absolute; }
+  [data-rostrum-plane] > :not(.rostrum-open, .rostrum-ready) { display: none; }
+  /* a tab that is ready but out of view keeps its layout and costs a frame nothing */
+  [data-rostrum-plane] > .rostrum-ready:not(.rostrum-open, .rostrum-in-view) { content-visibility: hidden; }
+  /* what is held to the lens stays with the open tab */
+  [data-rostrum-plane] > .rostrum-ready:not(.rostrum-open) .rostrum-pinned { visibility: hidden; }
+  /* new data were requested, what is shown stays readable and dims until they land */
+  .rostrum-on-table.rostrum-updating { opacity: var(--rostrum-stale, .62); transition: opacity .22s ease-out; }
+  /* a filter shown as a word in its own colour, it lights when on and a small word above it flips it to the opposite */
+  .rostrum-facet { display: inline-flex; flex-direction: column; gap: 3px; }
+  .rostrum-facet-not { all: unset; height: 1.3em; font: 400 .65625rem/1.3 var(--rostrum-mono); color: var(--rostrum-dim); cursor: pointer; }
+  .rostrum-facet-not:disabled { visibility: hidden; }
+  .rostrum-facet-not:hover { color: var(--rostrum-ink); }
+  .rostrum-facet-not[aria-pressed="true"] { color: var(--rostrum-ink); text-shadow: var(--rostrum-label-glow); }
+  .rostrum-facet-not:focus-visible { outline: 1.5px solid var(--rostrum-ink); outline-offset: 2px; }
+  .rostrum-facet-main { display: inline-flex; align-items: baseline; gap: 7px; padding-bottom: 3px; }
+  .rostrum-facet-own { font: 300 1rem/1.3 var(--rostrum-font); color: var(--rostrum-mut); white-space: nowrap; }
+  .rostrum-facet-name { all: unset; font: 300 1rem/1.3 var(--rostrum-font); color: var(--rostrum-facet-mark, var(--rostrum-mut)); white-space: nowrap; cursor: pointer; }
+  .rostrum-facet-name:hover { color: var(--rostrum-facet-mark, var(--rostrum-ink)); text-shadow: 0 0 12px color-mix(in oklch,var(--rostrum-facet-mark, var(--rostrum-glow)) 80%,transparent); }
+  .rostrum-facet-name:focus-visible { outline: 1.5px solid var(--rostrum-ink); outline-offset: 2px; }
+  .rostrum-facet-main b { min-width: 4ch; font: 400 .75rem/1 var(--rostrum-mono); font-variant-numeric: tabular-nums; color: var(--rostrum-facet-mark, var(--rostrum-dim)); opacity: .8; }
+  .rostrum-facet:not([data-state="off"]) .rostrum-facet-main { box-shadow: inset 0 -1px 0 var(--rostrum-facet-mark, var(--rostrum-glow)), 0 3px 8px -5px var(--rostrum-facet-mark, var(--rostrum-glow)); }
+  .rostrum-facet:not([data-state="off"]) .rostrum-facet-name { color: var(--rostrum-facet-mark, var(--rostrum-ink)); font-weight: 400; text-shadow: 0 0 11px color-mix(in oklch,var(--rostrum-facet-mark, var(--rostrum-glow)) 70%,transparent); }
+  .rostrum-facet:not([data-state="off"]) .rostrum-facet-main b { color: var(--rostrum-facet-mark, var(--rostrum-ink)); opacity: 1; }
+
+  /* a menu open inside an object stands over everything on the table, and the object neither grows nor gets scrollbars for it, also while its blur fades */
+  .rostrum-on-table:has([data-rostrum-popup]:not([hidden]), .rostrum-focus-menu) { overflow: visible !important; z-index: 100002 !important; }
+  /* an element with a backdrop filter is a Backdrop Root, and a blur inside it can see only what that root holds
+     while a popup of an object is open the object drops its own filter, so the field around the popup can blur what lies under the object */
+  .rostrum-on-table.rostrum-on-table.rostrum-on-table:has(.rostrum-focus-inside) { -webkit-backdrop-filter: none; backdrop-filter: none; }
+  /* a selection, the active words and the field to type more share one line and the saved selections open under it */
+  .rostrum-selection { position: relative; display: flex; flex: 1; min-width: 0; }
+  .rostrum-selection-line { display: flex; flex: 1; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; min-width: 0; padding-bottom: 3px; box-shadow: inset 0 -1px 0 var(--rostrum-hair); cursor: text; }
+  .rostrum-selection-line:focus-within { box-shadow: inset 0 -1px 0 var(--rostrum-glow), 0 3px 8px -5px var(--rostrum-glow); }
+  .rostrum-selection-words { display: contents; }
+  .rostrum-selection-words button { all: unset; cursor: pointer; font: 400 .8125rem/1.5 var(--rostrum-mono); color: var(--rostrum-facet-mark, var(--rostrum-ink)); text-shadow: var(--rostrum-label-glow); white-space: nowrap; }
+  .rostrum-selection-words button::after { content: '\00d7'; margin-left: 5px; color: var(--rostrum-dim); }
+  .rostrum-selection-words button:hover { text-decoration: line-through; text-decoration-color: currentColor; }
+  .rostrum-selection-words button:hover::after { color: var(--rostrum-ink); }
+  .rostrum-selection-words button:focus-visible { outline: 1.5px solid var(--rostrum-ink); outline-offset: 2px; }
+  .rostrum-selection-wiping button { animation: rostrum-selection-wipe .24s cubic-bezier(.4,0,1,1) both; animation-delay: calc(var(--i) * 26ms); }
+  .rostrum-selection-line input { flex: 1; min-width: 10ch; text-shadow: none; box-sizing: border-box; height: auto; margin: 0; padding: 0; background: none !important; border: 0 !important; border-radius: 0; box-shadow: none !important; outline: 0; color: var(--rostrum-ink); font: 400 .8125rem/1.5 var(--rostrum-mono); caret-color: var(--rostrum-glow); }
+  .rostrum-selection-line input::placeholder { color: color-mix(in oklch,var(--rostrum-dim) 62%,transparent); text-shadow: none; }
+  .rostrum-selection-line input.rostrum-selection-bad { color: var(--rostrum-wrong); }
+  .rostrum-selection-line input.rostrum-selection-after::placeholder { color: transparent; }
+  .rostrum-selection-open { all: unset; font: 300 .875rem/1.5 var(--rostrum-font); color: var(--rostrum-mut); white-space: nowrap; cursor: pointer; }
+  .rostrum-selection-open::after { content: ''; display: inline-block; width: 5px; height: 5px; margin: 0 2px 3px 8px; border: solid currentColor; border-width: 0 1px 1px 0; transform: rotate(45deg); }
+  .rostrum-selection-open[aria-expanded="true"]::after { margin-bottom: 0; transform: rotate(-135deg); }
+  .rostrum-selection-open:hover { color: var(--rostrum-ink); text-shadow: 0 0 12px color-mix(in oklch,var(--rostrum-glow) 95%,transparent); }
+  .rostrum-selection-open:focus-visible { outline: 1.5px solid var(--rostrum-ink); outline-offset: 2px; }
+  .rostrum-selection-panel { position: absolute; right: 0; top: calc(100% + 8px); z-index: 8; display: flex; flex-direction: column; gap: 6px; width: 320px; padding: 6px; cursor: default; }
+  .rostrum-selection-panel[hidden] { display: none; }
+  .rostrum-selection-name { box-sizing: border-box; width: 100%; height: auto; margin: 0; padding: 3px 0; background: none !important; border: 0 !important; border-bottom: 1px solid var(--rostrum-hair-strong) !important; border-radius: 0; box-shadow: none !important; outline: 0; color: var(--rostrum-ink); font: 300 .9375rem/1.4 var(--rostrum-font); }
+  .rostrum-selection-name[hidden] { display: none; }
+  .rostrum-selection-name:focus { border-bottom-color: var(--rostrum-ink) !important; }
+  .rostrum-selection-said { min-height: 1.3em; font: 400 .71875rem/1.3 var(--rostrum-mono); color: var(--rostrum-mut); }
+  .rostrum-selection-list { display: flex; flex-direction: column; gap: 2px; }
+  .rostrum-selection-item { display: flex; align-items: baseline; gap: 10px; }
+  .rostrum-selection-take { all: unset; flex: 1; min-width: 0; padding: 3px 0; font: 300 .9375rem/1.4 var(--rostrum-font); color: var(--rostrum-ink); cursor: pointer; }
+  .rostrum-selection-take:hover { text-shadow: 0 0 12px color-mix(in oklch,var(--rostrum-glow) 90%,transparent); }
+  .rostrum-selection-item b { font: 400 .75rem/1 var(--rostrum-mono); font-variant-numeric: tabular-nums; color: var(--rostrum-mut); }
+  .rostrum-selection-drop { all: unset; width: 1em; text-align: center; font: 400 .875rem/1 var(--rostrum-mono); color: var(--rostrum-dim); cursor: pointer; opacity: .4; }
+  .rostrum-selection-item:hover .rostrum-selection-drop, .rostrum-selection-drop:focus-visible { opacity: 1; }
+  .rostrum-selection-drop:hover { color: var(--rostrum-ink); }
+  .rostrum-selection-take:focus-visible, .rostrum-selection-drop:focus-visible, .rostrum-selection-save:focus-visible { outline: 1.5px solid var(--rostrum-ink); outline-offset: 1px; }
+  .rostrum-selection-save { all: unset; align-self: flex-start; font: 400 .71875rem/1.3 var(--rostrum-mono); color: var(--rostrum-mut); cursor: pointer; }
+  .rostrum-selection-save[hidden] { display: none; }
+  .rostrum-selection-save:hover { color: var(--rostrum-ink); }
+  @media (prefers-reduced-motion: reduce) { .rostrum-selection-wiping button { animation: none; } }
+
+  /* a field for one exact value, the value, its facts and its action share one line and the suggestions open under it */
+  .rostrum-lookup { position: relative; display: inline-flex; }
+  .rostrum-lookup-field { display: inline-flex; align-items: baseline; gap: 10px; }
+  .rostrum-lookup-slot { display: inline-flex; }
+  .rostrum-lookup-clear, .rostrum-lookup-action { all: unset; font: 400 .71875rem/1 var(--rostrum-mono); color: var(--rostrum-mut); white-space: nowrap; cursor: pointer; }
+  .rostrum-lookup-clear[hidden], .rostrum-lookup-action[hidden] { display: none; }
+  .rostrum-lookup-clear:hover, .rostrum-lookup-action:hover { color: var(--rostrum-ink); text-shadow: 0 0 10px color-mix(in oklch,var(--rostrum-glow) 90%,transparent); }
+  .rostrum-lookup-clear:focus-visible, .rostrum-lookup-action:focus-visible { outline: 1.5px solid var(--rostrum-ink); outline-offset: 2px; }
+  .rostrum-lookup-over .rostrum-lookup-facts { color: var(--rostrum-over, oklch(84% 0.1 80)); }
+  .rostrum-lookup-facts { font: 400 .71875rem/1 var(--rostrum-mono); font-variant-numeric: tabular-nums; color: var(--rostrum-mut); white-space: nowrap; }
+  .rostrum-lookup-panel { position: absolute; left: 0; top: calc(100% + 8px); z-index: 8; display: flex; flex-direction: column; gap: 1px; width: 280px; padding: 6px; cursor: default; }
+  .rostrum-lookup-panel[hidden] { display: none; }
+  .rostrum-lookup-panel button { all: unset; display: flex; align-items: baseline; justify-content: space-between; gap: 14px; padding: 3px 0; font: 300 .9375rem/1.4 var(--rostrum-font); font-variant-numeric: tabular-nums; color: var(--rostrum-ink); cursor: pointer; }
+  .rostrum-lookup-panel button:hover, .rostrum-lookup-panel button.rostrum-lookup-at { text-shadow: 0 0 12px color-mix(in oklch,var(--rostrum-glow) 90%,transparent); box-shadow: inset 0 -1px 0 var(--rostrum-glow); }
+  .rostrum-lookup-panel button:focus-visible { outline: 1.5px solid var(--rostrum-ink); outline-offset: 1px; }
+  .rostrum-lookup-panel b { font: 400 .71875rem/1 var(--rostrum-mono); color: var(--rostrum-mut); white-space: nowrap; }
+
+  .rostrum-period { position: relative; display: inline-flex; }
+  .rostrum-period-fields { display: inline-flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; }
+  .rostrum-period-end { display: inline-flex; flex-direction: column; gap: 3px; }
+  .rostrum-period-label { font: 400 .65625rem/1.3 var(--rostrum-mono); color: var(--rostrum-mut); text-transform: uppercase; letter-spacing: .03em; }
+  /* the two ends read like an instrument with no box around them, a group of digits reacts by itself on hover and focus */
+  .rostrum-period-stamp { display: inline-flex; align-items: baseline; color: var(--rostrum-dim); font: 300 1.3125rem/1.15 var(--rostrum-font); font-variant-numeric: tabular-nums; }
+  .rostrum-period-stamp i { font-style: normal; opacity: .55; }
+  .rostrum-period-dates .rostrum-period-stamp b, .rostrum-period-dates .rostrum-period-stamp [data-part="hour"], .rostrum-period-dates .rostrum-period-stamp [data-part="minute"], .rostrum-period-dates .rostrum-period-stamp i:last-of-type { display: none; }
+  .rostrum-period-stamp b { display: inline-block; width: 10px; }
+  .rostrum-period-stamp input { box-sizing: content-box; height: auto; min-height: 0; margin: 0; padding: 0 1px 2px; background: none !important; border: 0 !important; border-radius: 0; box-shadow: none !important; outline: 0 !important; color: var(--rostrum-ink); font: inherit; text-align: center; text-shadow: var(--rostrum-label-glow); caret-color: var(--rostrum-glow); cursor: ns-resize; }
+  .rostrum-period-stamp input.rostrum-period-w2 { width: 2ch; }
+  .rostrum-period-stamp input.rostrum-period-w4 { width: 4ch; color: var(--rostrum-mut); }
+  .rostrum-period-stamp input:hover { text-shadow: 0 0 12px color-mix(in oklch,var(--rostrum-glow) 95%,transparent); }
+  .rostrum-period-stamp input:focus { cursor: text; box-shadow: inset 0 -1.5px 0 var(--rostrum-glow), 0 3px 8px -4px var(--rostrum-glow) !important; }
+  .rostrum-period-stamp input::selection { background: color-mix(in oklch,var(--rostrum-glow) 34%,transparent); color: var(--rostrum-ink); }
+  .rostrum-period-stamp input.rostrum-period-bad { color: var(--rostrum-wrong); box-shadow: inset 0 -1.5px 0 var(--rostrum-wrong-line) !important; }
+  /* the line between the ends shows what happened in the period, a press opens the calendar */
+  .rostrum-period-line { all: unset; position: relative; display: block; width: 168px; height: 40px; cursor: pointer; }
+  .rostrum-period-line canvas { display: block; width: 100%; height: 24px; margin-top: 16px; }
+  .rostrum-period-length { position: absolute; left: 0; right: 0; top: 0; text-align: center; font: 400 .65625rem/1.3 var(--rostrum-mono); color: var(--rostrum-mut); font-variant-numeric: tabular-nums; }
+  .rostrum-period-line:hover canvas, .rostrum-period-line[aria-expanded="true"] canvas { filter: drop-shadow(0 0 5px color-mix(in oklch,var(--rostrum-glow) 80%,transparent)); }
+  .rostrum-period-line:hover .rostrum-period-length, .rostrum-period-line[aria-expanded="true"] .rostrum-period-length { color: var(--rostrum-ink); }
+  .rostrum-period-line:focus-visible { outline: 1.5px solid var(--rostrum-ink); outline-offset: 2px; }
+  .rostrum-period-said { align-self: center; font: 400 .71875rem/1.3 var(--rostrum-mono); color: var(--rostrum-wrong); }
+  .rostrum-period-panel { position: absolute; left: 0; top: calc(100% + 8px); z-index: 8; display: flex; gap: 22px; padding: 8px 6px; cursor: default; }
+  .rostrum-period-panel[hidden] { display: none; }
+  .rostrum-period-panel button { all: unset; cursor: pointer; }
+  .rostrum-period-panel button:focus-visible { outline: 1.5px solid var(--rostrum-ink); outline-offset: 1px; }
+  .rostrum-period-presets { min-width: 96px; padding-top: 2px; }
+  .rostrum-period-ready { display: flex; flex-direction: column; gap: 2px; }
+  .rostrum-period-presets button { padding: 3px 0; font: 300 .875rem/1.4 var(--rostrum-font); color: var(--rostrum-ink); white-space: nowrap; }
+  .rostrum-period-presets button:hover { text-shadow: 0 0 12px color-mix(in oklch,var(--rostrum-glow) 90%,transparent); }
+  .rostrum-period-typed { box-sizing: border-box; width: 136px; height: auto; margin-top: 10px; padding: 3px 0; background: none !important; border: 0 !important; border-bottom: 1px solid var(--rostrum-hair-strong) !important; box-shadow: none !important; outline: 0; color: var(--rostrum-ink); font: 400 .71875rem/1.4 var(--rostrum-mono); }
+  .rostrum-period-typed:focus { border-bottom-color: var(--rostrum-ink) !important; }
+  .rostrum-period-typed.rostrum-period-bad { border-bottom-color: var(--rostrum-wrong-line) !important; }
+  .rostrum-period-years { display: flex; align-items: baseline; gap: 9px; margin-bottom: 12px; font: 400 .75rem/1.3 var(--rostrum-mono); color: var(--rostrum-ink); }
+  .rostrum-period-years b { font-weight: 500; font-variant-numeric: tabular-nums; }
+  .rostrum-period-panel [data-season=winter] { --rostrum-season: var(--rostrum-winter); }
+  .rostrum-period-panel [data-season=spring] { --rostrum-season: var(--rostrum-spring); }
+  .rostrum-period-panel [data-season=summer] { --rostrum-season: var(--rostrum-summer); }
+  .rostrum-period-panel [data-season=autumn] { --rostrum-season: var(--rostrum-autumn); }
+  .rostrum-period-title span { color: var(--rostrum-season); }
+  .rostrum-period-years button { color: color-mix(in oklch,var(--rostrum-season, var(--rostrum-ink)) calc(58% + 42% * var(--v, 1)),transparent); }
+  .rostrum-period-years button:hover { color: var(--rostrum-season, var(--rostrum-ink)); text-shadow: 0 0 10px color-mix(in oklch,var(--rostrum-glow) 90%,transparent); }
+  .rostrum-period-years button.rostrum-period-empty { color: color-mix(in oklch,var(--rostrum-season, var(--rostrum-ink)) 34%,transparent); }
+  .rostrum-period-years button.rostrum-period-here { color: var(--rostrum-season, var(--rostrum-ink)); text-shadow: 0 0 10px color-mix(in oklch,var(--rostrum-glow) 90%,transparent); box-shadow: inset 0 -1px 0 var(--rostrum-glow); }
+  .rostrum-period-months { display: flex; gap: 26px; }
+  .rostrum-period-title { display: block; margin-bottom: 6px; font: 300 .875rem/1.3 var(--rostrum-font); color: var(--rostrum-ink); letter-spacing: .02em; }
+  .rostrum-period-title:hover { text-shadow: 0 0 12px color-mix(in oklch,var(--rostrum-glow) 90%,transparent); }
+  .rostrum-period-month table { width: auto; border-collapse: collapse; }
+  .rostrum-period-spare { height: 28px; }
+  .rostrum-period-month :is(th, td) { padding: 0 !important; border: 0 !important; background: none !important; box-shadow: none !important; text-align: center; }
+  .rostrum-period-month th { width: 32px; height: 20px; font: 400 .65625rem/1 var(--rostrum-mono); color: var(--rostrum-dim); text-transform: none; letter-spacing: 0; }
+  /* a day is as bright as it was busy, a colour under it says what happened in it */
+  .rostrum-period-panel button.rostrum-day { position: relative; display: block; box-sizing: border-box; width: 32px; height: 28px; line-height: 24px; text-align: center; font: 400 .78125rem/24px var(--rostrum-mono); font-variant-numeric: tabular-nums; color: color-mix(in oklch,var(--rostrum-ink) calc(62% + 38% * var(--v)),transparent); }
+  .rostrum-day.rostrum-day-none { color: color-mix(in oklch,var(--rostrum-ink) 38%,transparent); }
+  .rostrum-day:disabled { color: color-mix(in oklch,var(--rostrum-ink) 18%,transparent); cursor: default; }
+  .rostrum-day:not(:disabled):hover { color: var(--rostrum-ink); text-shadow: 0 0 10px color-mix(in oklch,var(--rostrum-glow) 95%,transparent); }
+  .rostrum-day span { position: absolute; left: 0; right: 0; bottom: 2px; display: flex; justify-content: center; gap: 2px; height: 3px; }
+  .rostrum-day i { display: block; width: 3px; height: 3px; border-radius: 50%; }
+  .rostrum-day.rostrum-day-today { font-weight: 700; }
+  .rostrum-day.rostrum-day-in { background: color-mix(in oklch,var(--rostrum-glow) 15%,transparent); color: var(--rostrum-ink); }
+  .rostrum-day.rostrum-day-edge { background: color-mix(in oklch,var(--rostrum-glow) 34%,transparent); color: var(--rostrum-ink); text-shadow: 0 0 8px color-mix(in oklch,var(--rostrum-glow) 90%,transparent); }
+  .rostrum-period-clock { display: flex; gap: 26px; margin-top: 8px; user-select: none; }
+  .rostrum-period-clock.rostrum-period-whole { visibility: hidden; }
+  .rostrum-period-ruler { flex: 1 1 0; min-width: 0; }
+  .rostrum-period-ruler[hidden] { display: none; }
+  .rostrum-period-tags { position: relative; height: 16px; font: 400 .75rem/16px var(--rostrum-mono); font-variant-numeric: tabular-nums; color: var(--rostrum-ink); }
+  .rostrum-period-tags span { position: absolute; top: 0; white-space: nowrap; text-shadow: var(--rostrum-label-glow); }
+  .rostrum-period-dial { position: relative; height: 26px; cursor: crosshair; touch-action: none; }
+  .rostrum-period-dial canvas { display: block; width: 100%; height: 100%; }
+  .rostrum-period-panel button.rostrum-period-hand { position: absolute; top: -3px; bottom: 0; width: 13px; margin-left: -6px; cursor: ew-resize; touch-action: none; }
+  .rostrum-period-hand::before { content: ""; position: absolute; left: 6px; top: 0; bottom: 0; width: 1px; background: var(--rostrum-ink); box-shadow: 0 0 6px var(--rostrum-glow); }
+  .rostrum-period-hand:hover::before, .rostrum-period-hand:focus-visible::before { width: 2px; }
+  .rostrum-period-hours { position: relative; height: 15px; font: 400 .65625rem/15px var(--rostrum-mono); color: var(--rostrum-dim); font-variant-numeric: tabular-nums; }
+  .rostrum-period-hours span { position: absolute; transform: translateX(-50%); }
+  .rostrum-period-hours b { position: absolute; left: 0; font-weight: 400; color: var(--rostrum-season, var(--rostrum-ink)); white-space: nowrap; }
+  /* the readout takes the width of the days and reserves two lines, so its text never moves the calendar */
+  .rostrum-period-readout { width: 0; min-width: 100%; min-height: 2.6em; margin-top: 10px; font: 400 .71875rem/1.3 var(--rostrum-mono); color: var(--rostrum-mut); font-variant-numeric: tabular-nums; }
+  /* while the data of a tab are coming its objects stay hidden until they can be drawn whole */
+  [data-rostrum-plane] > .rostrum-held .rostrum-on-table:not(.rostrum-lit) { visibility: hidden; }
+  /* what was moved last lies on top of what it was moved over */
+  .rostrum-on-table { position: absolute !important; box-sizing: border-box; margin: 0 !important; max-width: none !important; z-index: var(--rostrum-order, auto); }
+  .rostrum-on-table.rostrum-docked { z-index: 99999; }
+  .rostrum-on-table.rostrum-pinned { z-index: 100000; transform-origin: 0 0; }
+  .rostrum-on-table.rostrum-lifted { z-index: 100001; transform-origin: 0 0; }
+  /* an object docked, held to the lens, carried or lying over another gets a glass body and its own rim, its light stays on the table behind it */
+  .rostrum-on-table.rostrum-on-table.rostrum-docked, .rostrum-on-table.rostrum-on-table.rostrum-pinned, .rostrum-on-table.rostrum-on-table.rostrum-lifted, .rostrum-on-table.rostrum-on-table.rostrum-over {
+    background: color-mix(in oklch,var(--rostrum-body) 34%,transparent);
+    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(14px);
+    box-shadow: 0 0 0 1px var(--rostrum-edge), var(--rostrum-line-glow), 0 16px 34px -14px color-mix(in oklch,var(--rostrum-body) 90%,transparent);
+  }
+
+  /* corner brackets on an object while its menu is open or while it is carried, and always on what is held to the lens
+     They stay inside the object, because anything past its edge would count as content wider than the object */
+  .rostrum-on-table::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity .14s; --c: var(--rostrum-ink); --l: 18px;
+    background: linear-gradient(var(--c), var(--c)) 0 0 / var(--l) 1.5px, linear-gradient(var(--c), var(--c)) 0 0 / 1.5px var(--l),
+      linear-gradient(var(--c), var(--c)) 100% 0 / var(--l) 1.5px, linear-gradient(var(--c), var(--c)) 100% 0 / 1.5px var(--l),
+      linear-gradient(var(--c), var(--c)) 0 100% / var(--l) 1.5px, linear-gradient(var(--c), var(--c)) 0 100% / 1.5px var(--l),
+      linear-gradient(var(--c), var(--c)) 100% 100% / var(--l) 1.5px, linear-gradient(var(--c), var(--c)) 100% 100% / 1.5px var(--l);
+    background-repeat: no-repeat;
+  }
+  .rostrum-on-table.rostrum-menu-open::after, .rostrum-on-table.rostrum-lifted::after { opacity: .9; }
+  .rostrum-on-table.rostrum-pinned::after { opacity: 1; --l: 12px; filter: drop-shadow(0 0 4px color-mix(in oklch,var(--rostrum-glow) 90%,transparent)); }
+
+  [data-rostrum-empty]:empty::before { content: attr(data-rostrum-empty); position: absolute; left: 0; top: 0; white-space: nowrap; font: 300 .9375rem/1.4 var(--rostrum-font); letter-spacing: .08em; color: var(--rostrum-mut); }
+
+  #rostrumReadout { position: fixed; z-index: 7; padding: 2px 8px; font: 400 .6875rem/1.5 var(--rostrum-mono); color: var(--rostrum-ink); text-shadow: var(--rostrum-label-glow); pointer-events: none; font-variant-numeric: tabular-nums; }
+  /* the outline of an object flying to the rail, the object itself stays where it is */
+  .rostrum-ghost { position: fixed; z-index: 8; pointer-events: none; transform-origin: 0 0; box-shadow: 0 0 0 1.5px var(--rostrum-ink), 0 0 22px color-mix(in oklch,var(--rostrum-glow) 70%,transparent), inset 0 0 30px color-mix(in oklch,var(--rostrum-glow) 20%,transparent); }
+  #rostrumPointTip { position: fixed; z-index: 9; white-space: pre-line; max-width: 520px; }
+  /* a tip a site keeps inside an object keeps its size for the site and takes no room or scroll from the object */
+  .rostrum-tip-source { visibility: hidden !important; position: fixed !important; }
+  .rostrum-tip { pointer-events: none; padding: 4px 8px; color: var(--rostrum-ink); text-shadow: var(--rostrum-label-glow); font: 400 .75rem/1.4 var(--rostrum-mono); }
+
+  /* the menu of an object */
+  #rostrumNotch {
+    position: fixed; z-index: 8; width: 14px; height: 44px; padding: 0; border: 0; border-radius: 0; cursor: pointer;
+    background: repeating-linear-gradient(to bottom, var(--rostrum-glow) 0 1px, transparent 1px 5px) center / 6px 16px no-repeat;
+    box-shadow: none; opacity: 0; visibility: hidden; pointer-events: none; transform: translateX(-10px); transition: opacity .14s, transform .14s, visibility .14s;
+  }
+  #rostrumNotch.rostrum-shown { opacity: 1; visibility: visible; pointer-events: auto; transform: none; }
+  #rostrumNotch:hover, #rostrumNotch[aria-expanded="true"] { background: repeating-linear-gradient(to bottom, var(--rostrum-ink) 0 1px, transparent 1px 5px) center / 8px 16px no-repeat; filter: drop-shadow(0 0 5px color-mix(in oklch,var(--rostrum-glow) 90%,transparent)); }
+  #rostrumNotch:focus-visible, :is(#rostrumTray, #rostrumSettings) button:focus-visible { outline: 1.5px solid var(--rostrum-ink); outline-offset: -1.5px; }
+  #rostrumTray { position: fixed; z-index: 8; width: 216px; overflow: clip; }
+  #rostrumTray[hidden], #rostrumSettings[hidden] { display: none; }
+  .rostrum-tray-body { padding: 8px 0 6px; font: 400 .8125rem/1.3 var(--rostrum-font); }
+  .rostrum-focus { position: fixed; z-index: 7; pointer-events: none; mask-composite: intersect; -webkit-mask-composite: source-in; }
+  .rostrum-focus-inside { position: absolute; z-index: 5; }
+  .rostrum-tray-head { display: flex; flex-direction: column; gap: 2px; padding: 0 12px 8px; }
+  .rostrum-tray-head b { font-weight: 400; color: var(--rostrum-ink); overflow-wrap: break-word; min-width: 0; }
+  .rostrum-tray-size { font: 400 .6875rem/1.4 var(--rostrum-mono); color: var(--rostrum-mut); font-variant-numeric: tabular-nums; }
+  :is(#rostrumTray, #rostrumSettings) button { display: block; width: 100%; height: 30px; margin: 0; padding: 0 12px; border: 0; border-radius: 0; background: none; box-shadow: none; color: var(--rostrum-ink); font: inherit; text-align: left; cursor: pointer; }
+  /* hover shows only in the words of a row, with no line or strip near them */
+  :is(#rostrumTray, #rostrumSettings) button:hover { background: none; box-shadow: none; text-shadow: var(--rostrum-label-glow), 0 0 12px color-mix(in oklch,var(--rostrum-glow) 90%,transparent); }
+  :is(#rostrumTray, #rostrumSettings) button:active { background: none; box-shadow: none; color: var(--rostrum-glow); }
+  :is(#rostrumTray, #rostrumSettings) button[aria-pressed="true"] { font-weight: 700; text-shadow: var(--rostrum-label-glow); }
+  .rostrum-tray-scale { display: grid; grid-template-columns: minmax(0, 1fr) 30px 50px 30px; align-items: center; padding-left: 12px; color: var(--rostrum-ink); }
+  #rostrumTray .rostrum-tray-scale button { padding: 0; text-align: center; }
+  #rostrumTray .rostrum-tray-scale button[data-act="scale-reset"] { font: 400 .6875rem/1 var(--rostrum-mono); font-variant-numeric: tabular-nums; }
+
+  /* the settings open from a sliver in the corner of the screen, invisible until the pointer gets there
+     The corner is the easiest place to reach without looking */
+  #rostrumCorner { position: fixed; right: 0; bottom: 0; z-index: 9; width: 10px; height: 48px; margin: 0; padding: 0; border: 0; border-radius: 0; background: color-mix(in oklch,var(--rostrum-glow) 12%,transparent); box-shadow: inset 1px 0 0 var(--rostrum-glow), inset 0 1px 0 var(--rostrum-glow), 0 0 14px color-mix(in oklch,var(--rostrum-glow) 45%,transparent); opacity: 0; cursor: pointer; transition: opacity .12s; }
+  #rostrumCorner:hover, #rostrumCorner[aria-expanded="true"] { opacity: 1; background: color-mix(in oklch,var(--rostrum-glow) 12%,transparent); }
+  #rostrumCorner:focus-visible { opacity: 1; outline: 1.5px solid var(--rostrum-ink); outline-offset: -1.5px; }
+  #rostrumSettings { position: fixed; right: 14px; bottom: 8px; z-index: 8; width: 320px; overflow: clip; }
+  .rostrum-settings-rows { margin-top: 10px; }
+  .rostrum-shots-list { max-height: 40vh; overflow-y: auto; }
+  .rostrum-shot { display: grid; grid-template-columns: minmax(0, 1fr) auto 30px; align-items: center; padding-left: 12px; }
+  #rostrumSettings .rostrum-shot input { field-sizing: content; justify-self: start; min-width: 4ch; max-width: 100%; height: 22px; padding: 0; border: 0; background: none; box-shadow: none; color: var(--rostrum-ink); font: inherit; }
+  #rostrumSettings .rostrum-shot input:focus-visible { outline: 0; box-shadow: inset 0 -1px 0 var(--rostrum-glow); }
+  #rostrumSettings .rostrum-shot button { width: auto; padding: 0 10px; }
+  #rostrumSettings .rostrum-shot button[data-set="drop"] { padding: 0; text-align: center; }
+  .rostrum-settings-look { display: grid; grid-template-columns: minmax(0, 1fr); grid-auto-flow: column; grid-auto-columns: 60px; align-items: center; padding-left: 12px; color: var(--rostrum-ink); }
+  #rostrumSettings .rostrum-settings-look button { padding: 0; text-align: center; }
+
+  /* the lens and the frame of the camera over the view */
+  #rostrumLens { position: fixed; inset: 0; z-index: 4; pointer-events: none; background: radial-gradient(120% 105% at 50% 46%, transparent 62%, color-mix(in oklch,var(--rostrum-body) 34%,transparent) 100%); }
+  #rostrumViewfinder {
+    position: fixed; inset: 0; z-index: 3; pointer-events: none; --c: color-mix(in oklch,var(--rostrum-glow) 80%,transparent); --l: 22px;
+    background: linear-gradient(var(--c), var(--c)) 8px 8px / var(--l) 1px, linear-gradient(var(--c), var(--c)) 8px 8px / 1px var(--l),
+      linear-gradient(var(--c), var(--c)) calc(100% - 8px) 8px / var(--l) 1px, linear-gradient(var(--c), var(--c)) calc(100% - 8px) 8px / 1px var(--l),
+      linear-gradient(var(--c), var(--c)) 8px calc(100% - 8px) / var(--l) 1px, linear-gradient(var(--c), var(--c)) 8px calc(100% - 8px) / 1px var(--l),
+      linear-gradient(var(--c), var(--c)) calc(100% - 8px) calc(100% - 8px) / var(--l) 1px, linear-gradient(var(--c), var(--c)) calc(100% - 8px) calc(100% - 8px) / 1px var(--l);
+    background-repeat: no-repeat;
+  }
+
+  /* the projection of the open tab, top left of the frame */
+  #rostrumTabMap { position: fixed; left: 8px; top: var(--rostrum-map-top, 12px); width: 62px; height: 220px; z-index: 6; opacity: 0; overflow: hidden; touch-action: none; transition: opacity .16s ease-out; }
+  #rostrumTabMap.rostrum-shown { opacity: 1; background: color-mix(in oklch,var(--rostrum-body) 96%,transparent); box-shadow: 0 0 0 1px var(--rostrum-hair-strong), var(--rostrum-line-glow), 0 18px 40px -14px color-mix(in oklch,var(--rostrum-body) 90%,transparent); }
+  #rostrumTabMap.rostrum-held { cursor: grabbing; }
+  .rostrum-tab-copy { position: absolute; left: 0; top: 0; transform-origin: 0 0; pointer-events: none; }
+  /* lines of a copy are thick in its own scale, so at a tenth of the size they read as hairlines */
+  #rostrumTabMap .rostrum-tab-copy .rostrum-on-table { background-color: color-mix(in oklch,var(--rostrum-glow) 14%,transparent); box-shadow: 0 0 0 8px color-mix(in oklch,var(--rostrum-glow) 55%,transparent); }
+  #rostrumTabMap .rostrum-tab-copy * { text-shadow: none; }
+  #rostrumTabView { position: absolute; pointer-events: none; background: color-mix(in oklch,var(--rostrum-glow) 8%,transparent); box-shadow: 0 0 0 1.5px var(--rostrum-ink), 0 0 10px color-mix(in oklch,var(--rostrum-glow) 70%,transparent); }
+
+  /* for fingers touch targets are larger, what needs a hover is gone and a long press selects nothing */
+  @media (pointer: coarse) {
+    [data-rostrum-frame] { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+    #rostrumNotch { width: 28px; height: 56px; }
+    #rostrumCorner { bottom: 72px; width: 16px; height: 44px; opacity: 1; box-shadow: none; background: repeating-linear-gradient(to bottom, var(--rostrum-glow) 0 1px, transparent 1px 5px) center / 6px 16px no-repeat; }
+    #rostrumTabMap { display: none; }
+    :is(#rostrumTray, #rostrumSettings) button { height: 44px; }
+    /* a phone skips the blur under objects lying over another */
+    .rostrum-on-table.rostrum-on-table.rostrum-docked, .rostrum-on-table.rostrum-on-table.rostrum-pinned, .rostrum-on-table.rostrum-on-table.rostrum-lifted, .rostrum-on-table.rostrum-on-table.rostrum-over { -webkit-backdrop-filter: none; backdrop-filter: none; }
+    .rostrum-on-table [style*="overflow"] { touch-action: pan-x; }
+  }
+  /* a narrow screen is one column and the map gives its place to the content, the engine sets this attribute below compactWidth */
+  &[data-rostrum-compact] {
+    .rostrum-table-map, #rostrumViewfinder { display: none; }
+    #rostrumSettings { right: 20px; bottom: 72px; width: min(320px, calc(100vw - 40px)); }
+  }
+
+  &[data-rostrum-no-maps] :is(.rostrum-table-map, #rostrumTabMap) { display: none; }
+  &[data-rostrum-no-table-map] .rostrum-table-map, &[data-rostrum-no-tab-map] #rostrumTabMap { display: none; }
+
+  /* invisible until the pointer comes to its place, like the map of the tab */
+  .rostrum-table-map { position: fixed; right: 34px; bottom: 50px; width: 210px; padding: 0; margin: 0; z-index: 6; opacity: 0; transition: opacity .16s ease-out; }
+  .rostrum-table-map:hover { opacity: 1; }
+  @media (hover: none) { .rostrum-table-map { opacity: 1; } }
+  .rostrum-table-map svg { display: block; width: 100%; height: auto; max-height: 150px; overflow: hidden; box-shadow: none; background: color-mix(in oklch,var(--rostrum-body) 80%,transparent); }
+  .rostrum-table-map .rostrum-map-strip { fill: color-mix(in oklch,var(--rostrum-glow) 4%,transparent); cursor: pointer; }
+  .rostrum-table-map .rostrum-map-strip:hover { fill: color-mix(in oklch,var(--rostrum-glow) 18%,transparent); }
+  .rostrum-table-map .rostrum-map-cell > rect:not(.rostrum-map-strip) { fill: color-mix(in oklch,var(--rostrum-glow) 40%,transparent); pointer-events: none; }
+  .rostrum-table-map .rostrum-map-here .rostrum-map-strip { fill: color-mix(in oklch,var(--rostrum-glow) 10%,transparent); }
+  #rostrumMapView { fill: color-mix(in oklch,var(--rostrum-glow) 14%,transparent); stroke: var(--rostrum-glow); stroke-width: 7; pointer-events: none; }
+  .rostrum-cam-read { display: flex; justify-content: space-between; gap: 10px; white-space: nowrap; margin-top: 6px; font: 400 .6875rem/1.3 var(--rostrum-mono); color: var(--rostrum-dim); font-variant-numeric: tabular-nums; }
+  .rostrum-cam-read b { font-weight: 400; color: var(--rostrum-ink); }
+
+  /* the carriage on the rail of the tabs stands where the camera is */
+  #rostrumRailMark { position: absolute; left: 0; bottom: 0; width: 100px; height: 2px; background: var(--rostrum-ink); box-shadow: 0 0 10px color-mix(in oklch,var(--rostrum-glow) 95%,transparent), 0 0 26px color-mix(in oklch,var(--rostrum-glow) 50%,transparent); transform-origin: 0 0; pointer-events: none; }
+}
+
+.rostrum-unwritten { text-shadow: none !important; }
+.rostrum-unwritten-mark { visibility: hidden !important; }
+::highlight(rostrum-hidden) { color: transparent; text-shadow: none; }
+::highlight(rostrum-hot) { color: var(--rostrum-glow); text-shadow: 0 0 8px var(--rostrum-glow); }
+
+@keyframes rostrum-selection-wipe { to { opacity: 0; transform: translateX(10px); } }
+
+/* The default classes of charts.js, with no specificity so a page restyles them freely */
+:where(.rostrum-chart-cross) { stroke: var(--rostrum-hair-strong); stroke-width: 1; pointer-events: none; }
+:where(.rostrum-chart-legend) { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 4px; font-size: .75rem; color: var(--rostrum-mut); }
+:where(.rostrum-chart-legend > span > span) { display: inline-block; width: .7rem; height: .7rem; margin-right: .3rem; border-radius: 2px; vertical-align: middle; }
+:where(.rostrum-chart-prism) { position: absolute; left: 0; top: 0; z-index: 2; overflow: visible; pointer-events: none; }
+:where(.rostrum-chart-prism .beam) { fill: color-mix(in oklch, var(--rostrum-ink) 10%, transparent); }
+:where(.rostrum-chart-prism .mark) { fill: none; stroke: color-mix(in oklch, var(--rostrum-ink) 70%, transparent); stroke-width: 1; }
+:where(.rostrum-chart-prism .lens) { fill: color-mix(in oklch, var(--rostrum-ink) 8%, transparent); stroke: color-mix(in oklch, var(--rostrum-ink) 32%, transparent); stroke-width: 1; }
+:where(.rostrum-chart-prism .part) { fill: color-mix(in oklch, var(--rostrum-ink) 20%, transparent); }
+:where(.rostrum-chart-prism .part.hot) { fill: color-mix(in oklch, var(--rostrum-wrong) 52%, transparent); }
+:where(.rostrum-chart-prism .part.lit) { fill: color-mix(in oklch, var(--rostrum-ink) 52%, transparent); }

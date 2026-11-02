@@ -1,0 +1,27 @@
+{
+  "name": "rostrum",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "repository": "github:aldoroo/restrum",
+  "description": "A web page as a camera moving over a table. Each element is a unit with its own place, size and menu.",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./elements": "./elements.js",
+    "./calendar": "./calendar.js",
+    "./clock": "./clock.js",
+    "./charts": "./charts.js",
+    "./facet": "./facet.js",
+    "./selection": "./selection.js",
+    "./lookup": "./lookup.js",
+    "./rostrum.css": "./rostrum.css",
+    "./elements.css": "./elements.css"
+  },
+  "scripts": {
+    "test": "node --test tests/engine.test.mjs",
+    "check": "npx -y -p typescript@5.9 tsc -p tsconfig.json",
+    "test:browser": "python -m pytest tests"
+  }
+}

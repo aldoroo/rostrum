@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en" data-rostrum>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rostrum demo</title>
+<link rel="stylesheet" href="../rostrum.css">
+<link rel="stylesheet" href="../elements.css">
+<style>
+  /* what the objects of this site look like inside */
+  rostrum-object h3 { margin: 0 0 14px; font: 300 .875rem/1.25 var(--rostrum-font); letter-spacing: .14em; text-transform: uppercase; }
+  rostrum-object p { margin: 0 0 10px; max-width: 64ch; }
+  .readings { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  [data-rostrum-reading] { padding: 4px 14px 4px 0; }
+  [data-label] { font: 400 .65625rem/1.3 var(--rostrum-mono); text-transform: uppercase; color: var(--rostrum-mut); }
+  [data-value] { margin-top: 5px; font: 300 1.875rem/1.1 var(--rostrum-font); text-shadow: 0 0 16px oklch(90% 0.05 212 / 0.5); }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { padding: 8px 4px; text-align: left; border-bottom: 1px solid var(--rostrum-hair); font-weight: 300; }
+  th { font: 400 .65625rem/1.3 var(--rostrum-mono); text-transform: uppercase; color: var(--rostrum-mut); }
+  a { color: var(--rostrum-ink); }
+  svg { display: block; width: 100%; height: 150px; }
+</style>
+</head>
+<body>
+<rostrum-table storage="rostrum-demo." workbench="bench" workbench-title="Workbench">
+  <rostrum-tab name="work" title="Work" place="1,0">
+    <rostrum-object name="now" cols="1">
+      <h3>What I am building</h3>
+      <p>Replace this with your own words. Every block on this page is one object: bring the pointer to the top of its right rim and a button shows up, its menu moves it, resizes it, scales it, holds it in the frame or copies it to your workbench.</p>
+      <p>Drag anywhere on the table to move the camera, nothing limits where it goes.</p>
+    </rostrum-object>
+    <rostrum-object name="numbers" cols="1">
+      <h3>A few figures</h3>
+      <div class="readings">
+        <div data-rostrum-reading><div data-label>Projects</div><div data-value>12</div></div>
+        <div data-rostrum-reading><div data-label>Years</div><div data-value>7</div></div>
+        <div data-rostrum-reading><div data-label>Talks</div><div data-value>3</div></div>
+      </div>
+    </rostrum-object>
+    <rostrum-object name="projects">
+      <h3>Projects</h3>
+      <table>
+        <thead><tr><th>Name</th><th>What</th><th>Year</th></tr></thead>
+        <tbody>
+          <tr><td>First project</td><td>One line about it</td><td>2026</td></tr>
+          <tr><td>Second project</td><td>One line about it</td><td>2025</td></tr>
+          <tr><td>Third project</td><td>One line about it</td><td>2024</td></tr>
+        </tbody>
+      </table>
+    </rostrum-object>
+    <rostrum-object name="chart">
+      <h3>A chart with points that speak</h3>
+      <svg viewBox="0 0 600 150" fill="none" stroke="currentColor">
+        <path d="M0 120 L100 90 L200 104 L300 60 L400 72 L500 30 L600 44"/>
+        <g fill="currentColor" stroke="none">
+          <circle cx="100" cy="90" r="5"><title>Point one: a label written on the table, it takes pixels from the chart only under its letters</title></circle>
+          <circle cx="300" cy="60" r="5"><title>Point two</title></circle>
+          <circle cx="500" cy="30" r="5"><title>Point three</title></circle>
+        </g>
+      </svg>
+    </rostrum-object>
+  </rostrum-tab>
+  <rostrum-tab name="about" title="About" place="2,0">
+    <rostrum-object name="story">
+      <h3>About</h3>
+      <p>Each tab has its own ground on the table, the camera flies there.</p>
+    </rostrum-object>
+  </rostrum-tab>
+  <rostrum-tab name="contact" title="Contact" place="1,1">
+    <rostrum-object name="reach" cols="1">
+      <h3>Contact</h3>
+      <p><a href="mailto:you@example.com">you@example.com</a></p>
+    </rostrum-object>
+  </rostrum-tab>
+</rostrum-table>
+<script type="module" src="../elements.js"></script>
+</body>
+</html>

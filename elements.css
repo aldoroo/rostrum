@@ -1,0 +1,18 @@
+/* The frame of a site made of the elements alone, a title and a rail around <rostrum-table>
+   A site that uses createRostrum does not need this */
+:root[data-rostrum] {
+  rostrum-table { color: var(--rostrum-ink); font: 300 .875rem/1.5 var(--rostrum-font); }
+  rostrum-object { display: block; padding: 18px 22px 20px; color: var(--rostrum-ink); text-shadow: var(--rostrum-label-glow); }
+  .rostrum-title { position: fixed; left: 34px; top: 22px; margin: 0; z-index: 6; font: 300 1.0625rem/1.2 var(--rostrum-font); letter-spacing: .2em; text-transform: uppercase; color: var(--rostrum-ink); }
+  .rostrum-rail { position: fixed; left: 34px; bottom: 18px; z-index: 6; display: flex; gap: 18px; padding: 0 0 6px; max-width: calc(100vw - 300px); overflow-x: auto; scrollbar-width: none; box-shadow: inset 0 -1px 0 var(--rostrum-hair-strong); }
+  .rostrum-rail button { padding: 0 0 7px; border: 0; background: none; color: var(--rostrum-mut); font: 300 .78125rem/1.3 var(--rostrum-font); cursor: pointer; }
+  .rostrum-rail button:hover, .rostrum-rail button.active { color: var(--rostrum-ink); }
+  #rostrumTabMap { --rostrum-map-top: 72px; }
+
+  &[data-rostrum-compact] {
+    .rostrum-title { left: 12px; top: 14px; }
+    .rostrum-rail { left: 12px; right: 12px; bottom: 10px; max-width: none; }
+    .rostrum-rail button { flex: none; }
+    rostrum-object { padding: 14px; }
+  }
+}
