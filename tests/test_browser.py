@@ -768,6 +768,29 @@ def test_a_site_adds_its_switches_to_the_menu_of_the_frame(chromium, demo_url):
 
 
 @pytest.mark.heavy
+def test_the_table_gets_its_pixels_back_when_the_camera_rests(chromium, demo_url):
+    page = _api_page(chromium, demo_url)
+    feed = """([gap,count])=>{const s=rostrum.scene;for(let i=0;i<count;i++){s.lastBusy=-Infinity;s.keepUp(s.lastDraw+gap);}s.lastDraw=performance.now();}"""
+    ratio = "rostrum.scene.ratio"
+    # software rendering stays at its lowest scale whatever the frames say
+    lowest = page.evaluate(ratio)
+    page.evaluate(feed, [8, 300])
+    page.wait_for_timeout(700)
+    assert page.evaluate(ratio) == lowest
+    # the same page as on a machine with a GPU, which SwiftShader is not
+    page.evaluate("()=>{const s=rostrum.scene;s.software=false;s.liteByDevice=false;s.lite=false;s.share=1;s.resize();}")
+    top = page.evaluate(ratio)
+    page.evaluate(feed, [40, 12])
+    fallen = page.evaluate(ratio)
+    assert fallen < top
+    page.evaluate(feed, [8, 300])
+    assert page.evaluate(ratio) == fallen, "it does not rise while the camera moves"
+    page.wait_for_function(f"{ratio}>{fallen}", timeout=5000)
+    assert page.evaluate(ratio) == pytest.approx(top)
+    assert page.errors == []
+
+
+@pytest.mark.heavy
 def test_charts_have_a_plain_look_from_the_engine(chromium, demo_url):
     page = _api_page(chromium, demo_url)
     page.add_script_tag(url=demo_url.replace("demo/index.html", "charts.js"))

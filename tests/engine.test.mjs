@@ -6,6 +6,7 @@ import {Arrangement, STANDARD} from '../arrangement.js';
 import {Camera, CAMERA_F, MAX_H, MIN_H, RELEASE_MS} from '../camera.js';
 import {layerStyle, TIP_SHAPE} from '../focus.js';
 import {flightPath} from '../flight.js';
+import {Pace} from '../pace.js';
 import {besideBox} from '../popups.js';
 import {dateText, parseRange, readDate, readTime, stepField, sumPeriod, sumRange, weeksOf} from '../calendar.js';
 import {endsOf, placeEnd, snapMinute, stepMinute, windowOf} from '../clock.js';
@@ -506,4 +507,59 @@ test('the weeks of a month start on monday', () => {
   assert.equal(weeks[0][0], null, 'the first of september 2026 is a tuesday');
   assert.equal(weeks[0][1], Date.UTC(2026, 8, 1) / 1000);
   assert.equal(weeks.flat().filter(Boolean).length, 30);
+});
+
+test('the pace of the table falls fast, rises slowly and waits longer after a rise that failed', () => {
+  const run = (pace, gap, count, where = {}) => {
+    const said = [];
+    for (let i = 0; i < count; i++) {
+      const asked = pace.frame(gap, where);
+      if (asked) said.push(asked);
+    }
+    return said;
+  };
+  const pace = new Pace();
+  assert.deepEqual(run(pace, 40, 11), [], 'fewer slow frames than a run change nothing');
+  assert.deepEqual(run(pace, 40, 1), ['lower']);
+  assert.deepEqual(run(pace, 40, 12, {atFloor: true}), ['lite'], 'at the lowest scale the next step is lite');
+  assert.deepEqual(run(pace, 60, 12, {atFloor: true, lite: true}), [], 'nothing is left below lite');
+  run(pace, 16, 299);
+  assert.deepEqual(run(pace, 16, 1), ['raise'], 'a long run of fast frames raises the scale');
+  assert.deepEqual(run(pace, 16, 300, {atTop: true}), [], 'nothing rises past the top');
+
+  const band = new Pace();
+  assert.deepEqual(run(band, 25, 5000), [], 'frames between the limits change nothing');
+  run(band, 16, 299);
+  run(band, 25, 1);
+  assert.deepEqual(run(band, 16, 299), [], 'a frame between the limits starts the run over');
+
+  const paused = new Pace();
+  run(paused, 40, 11);
+  run(paused, 700, 1);
+  assert.deepEqual(run(paused, 40, 11), [], 'a pause between two movements ends a slow run');
+  run(paused, 40, 11, {busy: true});
+  assert.deepEqual(run(paused, 40, 11), [], 'frames after a long task say nothing');
+  assert.deepEqual(new Pace().frame(0), null);
+
+  const failing = new Pace();
+  failing.rose();
+  assert.deepEqual(run(failing, 40, 12), ['lower']);
+  assert.deepEqual(run(failing, 16, 300), [], 'after a rise that failed one run is not enough');
+  assert.deepEqual(run(failing, 16, 300), ['raise']);
+  failing.rose();
+  run(failing, 16, 240, {atTop: true});
+  run(failing, 16, 60, {atTop: true});
+  assert.deepEqual(run(failing, 16, 300), ['raise'], 'a rise that held brings the wait back');
+
+  const capped = new Pace();
+  for (let i = 0; i < 8; i++) {
+    capped.rose();
+    run(capped, 40, 12);
+  }
+  assert.equal(capped.needed, 4800, 'the wait has a limit');
+
+  const lite = new Pace();
+  assert.deepEqual(run(lite, 33, 300, {lite: true, atFloor: true, mayLeaveLite: true}), ['full'], 'lite that came from slowness can end');
+  assert.deepEqual(run(new Pace(), 33, 300, {lite: true, atTop: true}), [], 'lite of a device stays');
+  assert.deepEqual(run(new Pace(), 33, 300, {lite: true}), ['raise'], 'a device in lite still gets its pixels back');
 });

@@ -219,7 +219,7 @@ The engine does not load these on its own. A page imports what it needs. The opt
 | `arrangement.js` | the place of everything on one tab, snapshots |
 | `layout.js` | the standard arrangement, two lanes of two columns |
 | `camera.js`, `input.js`, `flight.js` | the camera, the input that moves it, the flight between tabs |
-| `scene.js`, `emitters.js` | the table as one fragment shader, and what gives light on it |
+| `scene.js`, `emitters.js`, `pace.js` | the table as one fragment shader, what gives light on it, when it gets more or fewer pixels |
 | `focus.js`, `popups.js` | layers of blur around words, and what comes up over the table |
 | `tray.js`, `carry.js`, `settings.js` | the menu of an object, carrying it, the menu of the frame |
 | `workbench.js` | copies. A copy and its original are one element that moves between tabs, so its ids, handlers and loaders stay alive |

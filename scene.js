@@ -3,6 +3,7 @@
    It draws only when something moved */
 import {CAMERA_F} from './camera.js';
 import {SLIDE_MS} from './object.js';
+import {Pace} from './pace.js';
 import {ZONE_COLUMN, ZONE_ROW} from './table.js';
 import {coarse} from './util.js';
 
@@ -12,12 +13,11 @@ const SCENE_MAX_SEAMS = 24;
 const SCENE_TILE = 1600;
 const SCRATCH_TEXELS = 2048;
 const SCRATCH_TEXELS_LITE = 1024;
-// this many frames in a row this slow give the table fewer pixels, one pause between two movements does not count
-const SLOW_MS = 30;
-const SLOW_MS_LITE = 50;
-const SLOW_RUN = 12;
 // frames this soon after a long task say nothing about the GPU
 const BUSY_MS = 250;
+// a rise of the render scale waits for the camera to rest this long, a canvas of a new size can cost a frame
+const REST_MS = 400;
+const LOWER_STEP = 0.8;
 // a new accent light rises over this time, along with the figure it lights
 const ACCENT_MS = 900;
 const MOST_PIXELS = 3500000;
@@ -284,9 +284,16 @@ export class Scene {
     this.lastDraw = 0;
     this.lastBusy = -Infinity;
     this.ratio = 0;
-    this.slowFrames = 0;
+    // the part of the highest render scale in use, so a window made large and small again gets its pixels back
+    this.share = 1;
+    this.pace = new Pace();
+    this.rising = null;
+    this.riseTimer = 0;
+    this.lastKept = 0;
     this.gpuName = '';
     this.lite = coarse();
+    this.liteByDevice = this.lite;
+    this.software = false;
   }
 
   start() {
@@ -310,7 +317,9 @@ export class Scene {
     // with software rendering the CPU draws every pixel, so the table starts at its lowest scale, the long tasks this causes would hide the slowness from keepUp
     if (/swiftshader|basic render|llvmpipe|software/i.test(this.gpuName)) {
       this.lite = true;
-      this.ratio = LOWEST_RATIO;
+      this.liteByDevice = true;
+      this.software = true;
+      this.share = 0;
       console.warn(`${new Date().toISOString()} scene: no GPU, ${this.gpuName}, the table is drawn at the lowest scale, half rate, fewer lights`);
     }
     canvas.addEventListener('webglcontextlost', (/** @type {Event} */ e) => {
@@ -332,6 +341,7 @@ export class Scene {
   stop() {
     if (this.frame) cancelAnimationFrame(this.frame);
     this.frame = 0;
+    clearTimeout(this.riseTimer);
     if (this.busy) this.busy.disconnect();
     if (!this.gl) return;
     const lose = this.gl.getExtension('WEBGL_lose_context');
@@ -358,13 +368,17 @@ export class Scene {
     for (const name of ['res', 'pixel', 'target', 'camH', 'camF', 'tilt', 'emitters', 'rect', 'tint', 'scans', 'scanRect', 'scanHead', 'scratches', 'seamsX', 'seamsY', 'seamX', 'seamY']) this.uniforms[name] = gl.getUniformLocation(program, name);
   }
 
-  resize(fixed) {
-    const {gl, canvas} = this;
-    if (!gl) return;
+  /* the highest render scale for this window and screen */
+  highestRatio() {
     // a phone has many pixels and a small GPU, the table is soft enough to do with fewer
     const most = this.lite ? 0.75 : 1.5;
-    const fits = Math.sqrt(MOST_PIXELS / (innerWidth * innerHeight));
-    const ratio = typeof fixed === 'number' ? fixed : Math.min(this.ratio || most, window.devicePixelRatio || 1, fits);
+    return Math.min(most, window.devicePixelRatio || 1, Math.sqrt(MOST_PIXELS / (innerWidth * innerHeight)));
+  }
+
+  resize() {
+    const {gl, canvas} = this;
+    if (!gl) return;
+    const highest = this.highestRatio(), ratio = Math.min(highest, Math.max(LOWEST_RATIO, highest * this.share));
     const width = Math.round(innerWidth * ratio), height = Math.round(innerHeight * ratio);
     if (canvas.width !== width || canvas.height !== height) {
       canvas.width = width;
@@ -460,26 +474,58 @@ export class Scene {
     if (warming) this.request();
   }
 
-  /* a machine that cannot keep up gets fewer pixels, measured from the gap between two draws of one movement */
+  /* A machine that cannot keep up gets fewer pixels and gets them back when it can, see pace.js
+     It is measured from the gap between two draws of one movement */
   keepUp(now) {
-    const gap = now - this.lastDraw;
+    const gap = now - this.lastDraw, highest = this.highestRatio();
     this.lastDraw = now;
-    if (gap >= 500) this.slowFrames = 0;
-    else if (gap > 0) {
-      if (performance.now() - this.lastBusy < BUSY_MS) this.slowFrames = 0;
-      else this.slowFrames = gap > (this.lite ? SLOW_MS_LITE : SLOW_MS) ? this.slowFrames + 1 : 0;
-      if (this.slowFrames >= SLOW_RUN && this.ratio > LOWEST_RATIO) {
-        this.ratio = Math.max(LOWEST_RATIO, this.ratio * 0.8);
-        this.slowFrames = 0;
-        console.warn(`${new Date().toISOString()} scene: frames take too long, render scale lowered to ${this.ratio.toFixed(2)}`);
-        this.resize(this.ratio);
-      } else if (this.slowFrames >= SLOW_RUN && !this.lite) {
-        // fewer pixels were not enough, so the table is drawn as on a phone, with fewer lights at half the rate of the content
-        this.lite = true;
-        this.slowFrames = 0;
-        console.warn(`${new Date().toISOString()} scene: frames still take too long at the lowest render scale, the table is drawn at half rate with fewer lights`);
-      }
+    this.lastKept = performance.now();
+    const asked = this.pace.frame(gap, {
+      busy: this.lastKept - this.lastBusy < BUSY_MS,
+      lite: this.lite,
+      atFloor: this.ratio <= LOWEST_RATIO,
+      atTop: this.software || this.ratio >= highest,
+      mayLeaveLite: !this.liteByDevice,
+    });
+    if (asked === 'lower') {
+      this.rising = null;
+      this.share = Math.max(LOWEST_RATIO, this.ratio * LOWER_STEP) / highest;
+      this.resize();
+      console.warn(`${new Date().toISOString()} scene: frames take too long, render scale lowered to ${this.ratio.toFixed(2)}`);
+    } else if (asked === 'lite') {
+      // fewer pixels were not enough, so the table is drawn as on a phone, with fewer lights at half the rate of the content
+      this.rising = null;
+      this.lite = true;
+      console.warn(`${new Date().toISOString()} scene: frames still take too long at the lowest render scale, the table is drawn at half rate with fewer lights`);
+    } else if (asked && !this.rising) {
+      this.rising = asked;
+      this.riseAtRest();
     }
+  }
+
+  /* a rise is made once the camera has rested, a sudden change of sharpness on the move would be seen */
+  riseAtRest() {
+    clearTimeout(this.riseTimer);
+    this.riseTimer = setTimeout(() => {
+      if (!this.rising || !this.gl) return;
+      if (performance.now() - this.lastKept < REST_MS) {
+        this.riseAtRest();
+        return;
+      }
+      const asked = this.rising;
+      this.rising = null;
+      this.pace.rose();
+      if (asked === 'full') {
+        this.lite = false;
+        console.info(`${new Date().toISOString()} scene: frames keep up, the table is drawn at full rate with all lights`);
+      } else {
+        const highest = this.highestRatio();
+        this.share = Math.min(highest, this.ratio / LOWER_STEP) / highest;
+        this.resize();
+        console.info(`${new Date().toISOString()} scene: frames keep up, render scale raised to ${this.ratio.toFixed(2)}`);
+      }
+      this.request();
+    }, REST_MS);
   }
 
   /* The emitters nearest to where the camera looks, as many as the shader takes
