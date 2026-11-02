@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "license": "MIT",
-  "repository": "github:aldoroo/restrum",
+  "repository": "github:aldoroo/rostrum",
   "description": "A web page as a camera moving over a table. Each element is a unit with its own place, size and menu.",
   "type": "module",
   "main": "index.js",
